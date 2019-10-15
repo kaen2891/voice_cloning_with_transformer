@@ -26,7 +26,7 @@ parser.add_argument('--max_sequence_length', type=int, default='256', help='numb
 parser.add_argument('--dropout_rate', type=float, default='0.1', help='number of max sequence size')
 parser.add_argument('--nfft', default='512', help='number of fft')
 parser.add_argument('--hop', default='256', help='number of noverlap')
-parser.add_argument('--ckpt', default='4', help='check point path')
+parser.add_argument('--ckpt', default='1000', help='check point path')
 parser.add_argument('--batch_size', type=int, default='5', help='number of batch')
 parser.add_argument('--epochs', type=int, default='10000', help='number of epochs')
 parser.add_argument('--gpus', type=str, default='0', help='using gpu number')
@@ -78,32 +78,34 @@ def loss_function(real, pred):
 
 def input_fn(inp, out, BATCH_SIZE, BUFFER_SIZE):
     dataset = tf.data.Dataset.from_tensor_slices((inp, out))
+    print("dataset slide",dataset)
     dataset = dataset.cache()
     
     train_dataset = dataset.shuffle(BUFFER_SIZE).batch(BATCH_SIZE, drop_remainder=True)
+    print("train_dataset shuffle",train_dataset)
     train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
-    print("data shape is ", np.shape(train_dataset))
-    print("prefetch", train_dataset)
+    print("train_dataset",train_dataset)
+    #print("prefetch", train_dataset)
     return train_dataset
 
 def main():
     # load dataset here
-    inp = np.load('./PBSG001/norm_male_mag.npy')
-    tar = np.load('./PBSG001/norm_female_mag.npy')
+    inp = np.load('./cmu1016/x_final_all.npy')
+    tar = np.load('./cmu1016/y_final_all.npy')
     print("inp", np.shape(inp)) # batch, fft, time
     
     new_X = inp[:, 1:, :]
     new_Y = inp[:, 1:, :]
     
-    print("new_X", np.shape(new_X))
+    print("new inp", np.shape(new_X))
     
     # transpose as batch, seq, fft
     inp = np.transpose(new_X, (0, 2, 1))
     tar = np.transpose(new_Y, (0, 2, 1))
-    print(np.shape(inp))
+    print("transpose inp",np.shape(inp))
     
     batch_size = args.batch_size
-    buffer_size = 10
+    buffer_size = 700
     num_layers = args.num_layers
     d_model = args.d_model
     num_heads = args.num_heads
@@ -168,6 +170,7 @@ def main():
         # inp -> man, tar -> woman
         for (batch, (inp, tar)) in enumerate(train_dataset):
             train_step(inp, tar)
+            print("batch is", batch)
 
             if batch % 50 == 0:
                 print('Epoch {} Batch {} Loss {:.4f}'.format(
