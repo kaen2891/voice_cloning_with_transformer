@@ -1,19 +1,12 @@
 import tensorflow as tf
-'''
-import tf2_model as ml
-import few_sample_data as data
-'''
 import numpy as np
 import argparse
 import os
 import sys
 import pickle
-#from tf2_config import DEFINES
 import matplotlib.pyplot as plt
 import librosa
 import librosa.display
-from datetime import datetime
-import data
 import tf2_model
 import time
 from datetime import datetime
@@ -49,7 +42,7 @@ def evaluate(inp_spectrograms):
     return tf.squeeze(output, axis=0)
     
 def main():
-    imported = tf.saved_model.load("./checkpoints2/train")
+    imported = tf.saved_model.load("./checkpoints2/train") # no working
     print(imported)
     exit()
     X_test = np.load('.npz')
