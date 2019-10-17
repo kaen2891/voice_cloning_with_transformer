@@ -62,20 +62,21 @@ def create_masks(inp, tar):
     combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
     return enc_padding_mask, combined_mask, dec_padding_mask
 
-def evaluate(inp_spectrogram, transformer):
+def evaluate(inp_spectrogram, transformer, tar):
 
     encoder_input = tf.expand_dims(inp_spectrogram, 0)
     #decoder_input = np.load('/data1/junewoo/workspace/voice_cloning_with_tranformer/cmu1016/sos_token.npy')
     #decoder_input = decoder_input[1:, ]
-    
+    '''
     decoder_input = np.load('/data1/junewoo/workspace/voice_cloning_with_tranformer/cmu1016/y_final_all.npy')
     decoder_input = decoder_input[0]
     decoder_input = np.transpose(decoder_input, (1, 0))
     decoder_input = decoder_input[:, 1:] 
-    
+    '''
     #decoder_input = np.transpose(decoder_input, (1, 0)) 
     
-    output = tf.expand_dims(decoder_input, 0) # (1, T, 256)
+    output = tf.expand_dims(tar, 0) # (1, T, 256)
+    #output = tf.expand_dims(decoder_input, 0) # (1, T, 256)
     
     #transformer = tf2_model.Transformer(args.num_layers, args.d_model, args.num_heads, args.dff, args.max_sequence_length, rate=args.dropout_rate)
     
@@ -94,6 +95,32 @@ def evaluate(inp_spectrogram, transformer):
     #print("done")
         #return tf.squeeze(output, axis=0)
         return tf.squeeze(predictions, axis=0)
+
+
+def recover(concat, for_save, name):
+    plt.figure(figsize=(10, 4))
+    librosa.display.specshow(librosa.amplitude_to_db(concat, ref=np.max), y_axis='hz', x_axis='time', sr=16000,
+                             hop_length=256)
+    plt.title(name)
+    plt.colorbar(format='%+2.0f dB')
+    plt.tight_layout()
+    print("dir", for_save)
+    fig_save_dir = for_save +'/fig/'
+    if not os.path.exists(fig_save_dir):
+        os.makedirs(fig_save_dir)
+
+        # fig_save_dir = '/mnt/junewoo/workspace/transform/tf_transformer/result/0925/one_figure'
+    plt.savefig(fig_save_dir + name + '_.png')
+
+    make_wav = librosa.istft(concat, hop_length=256)
+    # print(np.shape(make_wav))
+
+    # wav_save_dir = '/mnt/junewoo/workspace/transform/tf_transformer/result/0925/one_wav/'
+    wav_save_dir = for_save + '/wav/'
+    if not os.path.exists(wav_save_dir):
+        os.makedirs(wav_save_dir)
+    sf.write(wav_save_dir + name + '_.wav', make_wav, 16000, format='WAV', endian='LITTLE', subtype='PCM_16')
+    print("{}th done", name)
     
 def main():
     
@@ -101,19 +128,44 @@ def main():
     transformer = tf2_model.Transformer(args.num_layers, args.d_model, args.num_heads, args.dff, args.max_sequence_length, rate=args.dropout_rate)
     ckpt = tf.train.Checkpoint(transformer=transformer)
     ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
-    
     model = ckpt.restore(ckpt_manager.latest_checkpoint)
     
-    #print(model)
-    #exit()
-    X_test = np.load('./cmu1016/x_final_all.npy')
-    X_test = X_test[0] # 257 437
-    X_test = np.transpose(X_test, (1, 0)) # 437 257
-    X_test = X_test[:, 1:] # 437 256
-    #inp_spectrogram = tf.data.Dataset.from_tensor_slices(X_test)
+    #test mag
+    X_test = np.load('./cmu1016/x_ori_all.npy')
+    X_test = np.transpose(X_test, (0, 2, 1))
+    Y_test = np.load('./cmu1016/y_ori_all.npy')
+    Y_test = np.transpose(Y_test, (0, 2, 1))
+    X_test = X_test[:, :, 1:]
+    Y_test = Y_test[:, :, 1:]
+    #print("shape", np.shape(X_test))
     
-    result = evaluate(X_test, transformer)
-    np.save('./output_teacher_forcing', result) 
+    #test phase
+    X_phase = np.load('./cmu1016/x_phase_all.npy')
+    X_phase = X_phase[:, 1:, :]
+    
+    #X_test = np.load('./cmu1016/x_phase_all.npy')
+    print("mag, phase", np.shape(X_test), np.shape(X_phase)) #(437,256) (256, 437)
+    name = 'output_teacher_forcing_ckpt100_ori'
+    save_dir = './result/1017/'
+    for i in range(len(X_test)):
+        inp = X_test[i] # 437 256
+        pha = X_phase[i] # 256 437
+        tar = Y_test[i]
+        predict = evaluate(inp, transformer, tar)
+        print("after predict, shape is", np.shape(predict))
+        predict = predict[1:, :]
+        predict = np.transpose(predict, (1, 0)) # 256, 437
+        #np.save('./output_teacher_forcing{}', predict)
+        
+        concat = predict * pha
+        save_name = name+'_{}th'.format(i)
+        for_save = os.path.join(save_dir, name)
+        if not os.path.exists(for_save):
+            os.makedirs(for_save)
+        np.save(for_save, concat)
+        recover(concat, for_save, save_name)
+        #result = evaluate(X_test, transformer)
+         
 
     
 if __name__ == '__main__':
