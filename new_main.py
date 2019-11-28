@@ -21,7 +21,8 @@ matplotlib.use('Agg')
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--num_layers', type=int, default='6', help='number of encoder and decoder layers')
+parser.add_argument('--num_enc', type=int, default='6', help='number of encoderlayers')
+parser.add_argument('--num_dec', type=int, default='6', help='number of decoder layers')
 parser.add_argument('--d_model', type=int, default='256', help='number of hidden size(frequency sizes)')
 parser.add_argument('--num_heads', type=int, default='8', help='number of multihead attention')
 parser.add_argument('--dff', type=int, default='1024', help='number of feed forward network size')
@@ -142,6 +143,7 @@ def input_fn(txt_inp, spec_inp, txt_dec, spec_dec, txt_tar, spec_tar, BATCH_SIZE
     dataset = dataset.cache()
 
     train_dataset = dataset.shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
+    #train_dataset = dataset.batch(BATCH_SIZE)
 
     # print("train_dataset shuffle",train_dataset)
     train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
@@ -160,13 +162,16 @@ def main():
     # inp_txt = txt_inp[:, 1:-1]
     # tar_txt = txt_inp
 
-    spec_enc_inp = np.load('./cmu1120/dtw/x_train_ori_all_512_256.npy')  # source man, ori
+    #spec_enc_inp = np.load('./cmu1120/dtw/x_train_ori_all_512_256.npy')  # source man, ori
+    spec_enc_inp = np.load('./cmu1120/origin/x_train_ori_all_512_256.npy')  # source man, ori
     spec_enc_inp = spec_enc_inp.astype('float32')
 
-    spec_dec_inp = np.load('./cmu1120/dtw/y_train_dec_all_512_256.npy')  # source man, ori
+    #spec_dec_inp = np.load('./cmu1120/dtw/y_train_dec_all_512_256.npy')  # source man, ori
+    spec_dec_inp = np.load('./cmu1120/origin/y_train_dec_all_512_256.npy')  # source man, ori
     spec_dec_inp = spec_dec_inp.astype('float32')
 
-    spec_tar_inp = np.load('./cmu1120/dtw/y_train_tar_all_512_256.npy')  # source man, ori
+    #spec_tar_inp = np.load('./cmu1120/dtw/y_train_tar_all_512_256.npy')  # source man, ori
+    spec_tar_inp = np.load('./cmu1120/origin/y_train_tar_all_512_256.npy')  # source man, ori
     spec_tar_inp = spec_tar_inp.astype('float32')
 
     # print("spec_inp", np.shape(spec_inp))  # batch, fft, time
@@ -196,9 +201,11 @@ def main():
 
     train_loss_text = tf.keras.metrics.Mean(name='train_loss_text')
     print(train_loss_text)
+    train_accuracy = tf.keras.metrics.SparseCategoricalAccuracy(
+    name='train_accuracy')
     train_loss_spec = tf.keras.metrics.Mean(name='train_loss_spec')
     print(train_loss_spec)
-    transformer = new_model.Transformer(args.num_layers, args.d_model, args.num_heads, args.dff, vocab_size,
+    transformer = new_model.Transformer(args.num_enc, args.num_dec, args.d_model, args.num_heads, args.dff, vocab_size,
                                               args.max_sequence_length, args.max_text_length, args.max_spec_length, rate=args.dropout_rate)
     print(transformer)
     # exit()
@@ -283,6 +290,7 @@ def main():
 
         train_loss_text(loss_text)
         train_loss_spec(loss_spec)
+        train_accuracy(tar_txt, predict_txt)
 
         return predict_txt, predict_spec
 
@@ -291,6 +299,7 @@ def main():
 
         train_loss_text.reset_states()
         train_loss_spec.reset_states()
+        train_accuracy.reset_states()
         # train_accuracy.reset_states()
 
         # inp -> man, tar -> woman
@@ -303,16 +312,16 @@ def main():
             result_txt, result = train_step(inp_txt, inp_spec, dec_txt, dec_spec, tar_txt, tar_spec)
 
             if batch % 20 == 0:
-                print('Epoch {} Batch {} Text_Loss {:.4f} Spec_Loss {:.4f}'.format(
-                    epoch + 1, batch, train_loss_text.result(), train_loss_spec.result()))
+                print('Epoch {} Batch {} Text_Loss {:.4f} Spec_Loss {:.4f}, Text_Acc {:.4f}'.format(
+                    epoch + 1, batch, train_loss_text.result(), train_loss_spec.result(), train_accuracy.result()))
 
         if (epoch + 1) % 20 == 0:
             ckpt_save_path = ckpt_manager.save()
             print('Saving checkpoint for epoch {} at {}'.format(epoch + 1,
                                                                 ckpt_save_path))
 
-        print('Epoch {} Text_Loss {:.4f} Spec_Loss {:.4f}'.format(epoch + 1, train_loss_text.result(),
-                                                                  train_loss_spec.result()))
+        print('Epoch {} Text_Loss {:.4f} Spec_Loss {:.4f}, Text_Acc {:.4f}'.format(epoch + 1, train_loss_text.result(),
+                                                                  train_loss_spec.result(), train_accuracy.result()))
 
         tf.summary.scalar('text_loss', data=train_loss_text.result(), step=epoch)
         tf.summary.scalar('spec_loss', data=train_loss_spec.result(), step=epoch)
@@ -412,5 +421,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-

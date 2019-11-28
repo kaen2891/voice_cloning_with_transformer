@@ -54,14 +54,12 @@ def scaled_dot_product_attention(q, k, v, mask):
     k, v must have matching penultimate dimension, i.e.: seq_len_k = seq_len_v.
     The mask has different shapes depending on its type(padding or look ahead)
     but it must be broadcastable for addition.
-
     Args:
       q: query shape == (..., seq_len_q, depth)
       k: key shape == (..., seq_len_k, depth)
       v: value shape == (..., seq_len_v, depth_v)
       mask: Float tensor with shape broadcastable
             to (..., seq_len_q, seq_len_k). Defaults to None.
-
     Returns:
       output, attention_weights
     """
@@ -218,18 +216,18 @@ class Encoder(tf.keras.layers.Layer):
 
         self.embedding = tf.keras.layers.Embedding(vocab_size, d_model)
         self.seg_embedding = tf.keras.layers.Embedding(2, d_model)
-        self.pos_embedding = tf.keras.layers.Embedding(max_sequence_length-2, self.d_model)
-        self.pos_encoding = positional_encoding(max_sequence_length-2,
+        self.pos_embedding = tf.keras.layers.Embedding(max_sequence_length - 2, self.d_model)
+        self.pos_encoding = positional_encoding(max_sequence_length - 2,
                                                 self.d_model)
 
         self.enc_layers = [EncoderLayer(d_model, num_heads, dff, rate)
                            for _ in range(num_layers)]
-        
+
         self.dropout = tf.keras.layers.Dropout(rate)
-        self.seg = tf.constant([[0] * (max_text_length-1) + [1] * (max_spec_length-1)])
+        self.seg = tf.constant([[1] * (max_text_length - 1) + [0] * (max_spec_length - 1)])
         # self.seg = [1, 540] [[0,0,0,1,1,1,1,,.]]
 
-        self.pos = tf.constant([[i for i in range(max_sequence_length-2)]])
+        self.pos = tf.constant([[i for i in range(max_sequence_length - 2)]])
 
     def call(self, text, spec, training, mask):
         # seq_len_text = tf.shape(text)[1]
@@ -241,8 +239,8 @@ class Encoder(tf.keras.layers.Layer):
 
         # concat
         x = tf.concat([x, spec], axis=1, name='all_data')
-        
-        seg_all = self.seg_embedding(self.seg)  
+
+        seg_all = self.seg_embedding(self.seg)
         pos_all = self.pos_embedding(self.pos)
 
         # x += self.pos_encoding[:, :seq_len_text + seq_len_, :] + seg_all
@@ -272,7 +270,7 @@ class Decoder(tf.keras.layers.Layer):
         self.dec_layers = [DecoderLayer(d_model, num_heads, dff, rate)
                            for _ in range(num_layers)]
         self.dropout = tf.keras.layers.Dropout(rate)
-        self.seg = tf.constant([[0] * int(max_text_length) + [1] * int(max_spec_length)])
+        self.seg = tf.constant([[1] * int(max_text_length) + [0] * int(max_spec_length)])
         self.pos = tf.constant([[i for i in range(max_sequence_length)]])
 
     def call(self, text, spec, enc_output, training,
@@ -312,13 +310,15 @@ class Decoder(tf.keras.layers.Layer):
 
 # input_vocab_size, target_vocab_size, pe_input, pe_target
 class Transformer(tf.keras.Model):
-    def __init__(self, num_layers, d_model, num_heads, dff, vocab_size, max_sequence_length, max_text_length, max_spec_length, rate=0.1):
+    def __init__(self, num_enc, num_dec, d_model, num_heads, dff, vocab_size, max_sequence_length, max_text_length,
+                 max_spec_length, rate=0.1):
         super(Transformer, self).__init__()
-        
 
-        self.encoder = Encoder(num_layers, d_model, num_heads, dff, vocab_size, max_sequence_length, max_text_length, max_spec_length, rate)
+        self.encoder = Encoder(num_enc, d_model, num_heads, dff, vocab_size, max_sequence_length, max_text_length,
+                               max_spec_length, rate)
 
-        self.decoder = Decoder(num_layers, d_model, num_heads, dff, vocab_size, max_sequence_length, max_text_length, max_spec_length, rate)
+        self.decoder = Decoder(num_dec, d_model, num_heads, dff, vocab_size, max_sequence_length, max_text_length,
+                               max_spec_length, rate)
 
         self.final_layer = tf.keras.layers.Dense(vocab_size)  # text
 
