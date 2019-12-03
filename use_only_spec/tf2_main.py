@@ -188,7 +188,7 @@ def main():
         enc_padding_mask, combined_mask, dec_padding_mask = create_masks(enc_inp, dec_inp)
 
         with tf.GradientTape() as tape:
-            predictions, _ = transformer(enc_inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
+            predictions, _ = transformer(enc_inp, dec_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
             loss = loss_function(tar_inp, predictions)
         # if batch%
         gradients = tape.gradient(loss, transformer.trainable_variables)
